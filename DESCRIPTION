@@ -1,0 +1,30 @@
+Package: mtexto
+Type: Package
+Title: Aplicativo Shiny para Mineração de Texto
+Version: 0.1.0
+Authors@R: 
+    person(
+      given = "Wellington de Lara",
+      family = "Martins",
+      email = "wellingtonmartins01093@gmail.com",
+      role = c("aut", "cre")
+    )
+Description: Aplicativo interativo desenvolvido com Shiny para facilitar a leitura,
+    pré-processamento, geração de nuvem de palavras e análise de sentimentos de textos.
+    O pacote visa democratizar o acesso às técnicas de mineração de texto, especialmente 
+    para pesquisadores de diferentes áreas. Utiliza pacotes como 'tm', 'syuzhet', 
+    'textstem', 'SnowballC' e 'ggplot2' para realizar a análise textual e gerar visualizações.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.2
+Imports:
+    shiny,
+    tm,
+    wordcloud,
+    RColorBrewer,
+    syuzhet,
+    ggplot2,
+    stringi,
+    textstem,
+    SnowballC
