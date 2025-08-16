@@ -1,4 +1,4 @@
-
+# Layout do aplicativo
 ui <- fluidPage(
   titlePanel("Apicativo Shiny para Mineração de Texto"),
 
@@ -50,7 +50,7 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 
-  # ← Carrega uma vez quando o app inicia
+  #  Carrega uma vez quando o app inicia
   model <- load_udpipe_model()
   cat("Modelo UDPipe carregado\n")
 
