@@ -6,7 +6,7 @@ ui <- fluidPage(
     tabPanel("Nuvem de Palavras",
              sidebarLayout(
                sidebarPanel(
-                 fileInput("file", "Carregar arquivo (.txt)", accept = c(".txt")),
+                 fileInput("file", "Carregar arquivo (.txt)", accept = c(".txt",".pdf")),
                  checkboxGroupInput("preprocess_options", "Opções de Pré-Processamento:",
                                     choices = list(
                                       "Converter para minúsculas" = "lowercase",
@@ -31,7 +31,7 @@ ui <- fluidPage(
     tabPanel("Análise de Sentimentos",
              sidebarLayout(
                sidebarPanel(
-                 fileInput("file_sentiment", "Carregar arquivo (.txt)", accept = c(".txt")),
+                 fileInput("file_sentiment", "Carregar arquivo (.txt)", accept = c(".txt", ".pdf")),
                  actionButton("analyze", "Analisar Sentimentos"),
                  radioButtons("select_graph", "Selecionar gráfico para download:",
                               choices = list("Todos os Sentimentos" = "all",
@@ -50,6 +50,10 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 
+  # ← Carrega uma vez quando o app inicia
+  model <- load_udpipe_model()
+  cat("Modelo UDPipe carregado\n")
+
   ### Função para Nuvem de Palavras
   observeEvent(input$process, {
     req(input$file)
@@ -60,10 +64,13 @@ server <- function(input, output, session) {
     texto_processado <- reactive({
       corpus <- Corpus(VectorSource(texto()))
 
+
+      # Dentro do processamento do texto:
       if ("lemmatization" %in% input$preprocess_options) {
-        lemmatized_text <- lemmatize_strings(texto())
+        lemmatized_text <- lemmatize_udpipe(texto(), model)
         corpus <- Corpus(VectorSource(lemmatized_text))
       }
+
 
       if ("stemming" %in% input$preprocess_options) {
         stemmed_text <- sapply(texto(), function(x) paste(wordStem(unlist(strsplit(x, " ")), language = "portuguese"), collapse = " "))
@@ -130,9 +137,10 @@ server <- function(input, output, session) {
     )
   })
 
-  ### Função para Análise de Sentimentos
+  ### ANÁLISE DE SENTIMENTOS ###
   observeEvent(input$analyze, {
     req(input$file_sentiment)
+
     texto_sentiment <- reactive({
       readLines(input$file_sentiment$datapath, encoding = "UTF-8")
     })
@@ -144,7 +152,6 @@ server <- function(input, output, session) {
       data.frame(Sentiment = names(sent_summary), Score = as.numeric(sent_summary))
     })
 
-    # Traduzindo os sentimentos
     traduzir_sentimentos <- function(sentiment) {
       translation <- c(
         "anger" = "Raiva",
@@ -162,26 +169,47 @@ server <- function(input, output, session) {
     }
 
     output$sentiment_plot <- renderPlot({
-      req(sentiment_analysis())
       analysis <- sentiment_analysis()
-      analysis$Sentiment <- sapply(analysis$Sentiment, traduzir_sentimentos)
-      ggplot(analysis, aes(x = Sentiment, y = Score, fill = Sentiment)) +
+      emotions_only <- analysis[!analysis$Sentiment %in% c("positive", "negative"), ]
+      emotions_only$Sentiment <- sapply(emotions_only$Sentiment, traduzir_sentimentos)
+
+      # Mapeia cada emoção para sua polaridade
+      polaridade <- c(
+        "Raiva" = "negativo",
+        "Nojo" = "negativo",
+        "Medo" = "negativo",
+        "Tristeza" = "negativo",
+        "Antecipação" = "positivo",
+        "Alegria" = "positivo",
+        "Surpresa" = "positivo",
+        "Confiança" = "positivo"
+      )
+      cores <- c("positivo" = "#00cfc1", "negativo" = "#fc8675")
+
+
+      emotions_only$Polaridade <- polaridade[emotions_only$Sentiment]
+
+      ggplot(emotions_only, aes(x = Sentiment, y = Score, fill = Polaridade)) +
         geom_bar(stat = "identity") +
+        scale_fill_manual(values = cores) +
         theme_minimal() +
-        labs(title = "Análise de Sentimentos", x = "Sentimentos", y = "Pontuação")
+        labs(title = "Análise de Emoções (com Polaridade)", x = "Sentimentos", y = "Pontuação") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
     })
 
+
+    # Gráfico Positivo/Negativo
     output$positive_negative_plot <- renderPlot({
-      req(sentiment_analysis())
       analysis <- sentiment_analysis()
-      positive_negative <- analysis[analysis$Sentiment %in% c("positive", "negative"), ]
-      positive_negative$Sentiment <- sapply(positive_negative$Sentiment, traduzir_sentimentos)
-      ggplot(positive_negative, aes(x = Sentiment, y = Score, fill = Sentiment)) +
+      posneg <- analysis[analysis$Sentiment %in% c("positive", "negative"), ]
+      posneg$Sentiment <- sapply(posneg$Sentiment, traduzir_sentimentos)
+      ggplot(posneg, aes(x = Sentiment, y = Score, fill = Sentiment)) +
         geom_bar(stat = "identity") +
         theme_minimal() +
         labs(title = "Análise Positivo/Negativo", x = "Sentimentos", y = "Pontuação")
     })
 
+    # Download handler
     output$download_sentiment <- downloadHandler(
       filename = function() {
         if (input$select_graph == "all") {
@@ -191,23 +219,41 @@ server <- function(input, output, session) {
         }
       },
       content = function(file) {
-        png(file)
+        png(file, width = 800, height = 600)
+        analysis <- sentiment_analysis()
+
         if (input$select_graph == "all") {
-          analysis <- sentiment_analysis()
-          analysis$Sentiment <- sapply(analysis$Sentiment, traduzir_sentimentos)
-          print(
-            ggplot(analysis, aes(x = Sentiment, y = Score, fill = Sentiment)) +
-              geom_bar(stat = "identity") +
-              theme_minimal() +
-              labs(title = "Análise de Sentimentos", x = "Sentimentos", y = "Pontuação") +
-              theme(axis.text.x = element_text(angle = 45, hjust = 1))  # ← rotação dos rótulos
+          emotions_only <- analysis[!analysis$Sentiment %in% c("positive", "negative"), ]
+          emotions_only$Sentiment <- sapply(emotions_only$Sentiment, traduzir_sentimentos)
+
+          polaridade <- c(
+            "Raiva" = "negativo",
+            "Nojo" = "negativo",
+            "Medo" = "negativo",
+            "Tristeza" = "negativo",
+            "Antecipação" = "positivo",
+            "Alegria" = "positivo",
+            "Surpresa" = "positivo",
+            "Confiança" = "positivo"
           )
-        } else {
-          analysis <- sentiment_analysis()
-          positive_negative <- analysis[analysis$Sentiment %in% c("positive", "negative"), ]
-          positive_negative$Sentiment <- sapply(positive_negative$Sentiment, traduzir_sentimentos)
+          cores <- c("positivo" = "#00cfc1", "negativo" = "#fc8675")
+
+          emotions_only$Polaridade <- polaridade[emotions_only$Sentiment]
+
           print(
-            ggplot(positive_negative, aes(x = Sentiment, y = Score, fill = Sentiment)) +
+            ggplot(emotions_only, aes(x = Sentiment, y = Score, fill = Polaridade)) +
+              geom_bar(stat = "identity") +
+              scale_fill_manual(values = cores) +
+              theme_minimal() +
+              labs(title = "Análise de Emoções (com Polaridade)", x = "Sentimentos", y = "Pontuação") +
+              theme(axis.text.x = element_text(angle = 45, hjust = 1))
+          )
+
+        } else {
+          posneg <- analysis[analysis$Sentiment %in% c("positive", "negative"), ]
+          posneg$Sentiment <- sapply(posneg$Sentiment, traduzir_sentimentos)
+          print(
+            ggplot(posneg, aes(x = Sentiment, y = Score, fill = Sentiment)) +
               geom_bar(stat = "identity") +
               theme_minimal() +
               labs(title = "Análise Positivo/Negativo", x = "Sentimentos", y = "Pontuação")
@@ -219,3 +265,4 @@ server <- function(input, output, session) {
   })
 }
 
+shinyApp(ui = ui, server = server)

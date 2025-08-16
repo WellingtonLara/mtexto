@@ -21,6 +21,7 @@ RoxygenNote: 7.3.2
 Imports:
     shiny,
     tm,
+    udpipe,
     wordcloud,
     RColorBrewer,
     syuzhet,
