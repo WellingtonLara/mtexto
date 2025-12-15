@@ -28,4 +28,7 @@ Imports:
     ggplot2,
     stringi,
     textstem,
-    SnowballC
+    SnowballC,
+    pdftools,
+    tools
+devtools::document()
