@@ -1,7 +1,7 @@
 Package: mtexto
 Type: Package
 Title: Aplicativo Shiny para Mineração de Texto
-Version: 0.1.0
+Version: 0.1.2
 Authors@R: 
     person(
       given = "Wellington de Lara",
